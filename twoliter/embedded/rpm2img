@@ -611,6 +611,10 @@ EOF
 touch "${PRIVATE_MOUNT}/bootconfig.data"
 bootconfig -a "${PRIVATE_MOUNT}/bootconfig.in" "${PRIVATE_MOUNT}/bootconfig.data"
 rm "${PRIVATE_MOUNT}/bootconfig.in"
+cat <<EOF > "${PRIVATE_MOUNT}/user-data.toml"
+[settings]
+motd = "hello from local file"
+EOF
 
 # Targeted toward the current API server implementation.
 # Relative to the ext4 defaults, we:
@@ -621,6 +625,16 @@ mkfs.ext4 -b 4096 -i 4096 -I 256 -d "${PRIVATE_MOUNT}" "${PRIVATE_IMAGE}" "${par
 dd if="${PRIVATE_IMAGE}" of="${OS_IMAGE}" conv=notrunc bs=1M seek="${partoff[PRIVATE]}"
 
 # BOTTLEROCKET-DATA-A and BOTTLEROCKET-DATA-B
+
+cat <<EOF >"${DATA_MOUNT}/user-data-defaults.toml"
+[settings]
+motd = "hello from defaults"
+EOF
+
+cat <<EOF >"${DATA_MOUNT}/user-data-overrides.toml"
+[settings]
+motd = "hello from overrides"
+EOF
 
 # If we build on a host with SELinux enabled, we could end up with labels that
 # do not match our policy. Since we allow replacing the data volume at runtime,
