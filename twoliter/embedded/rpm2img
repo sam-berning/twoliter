@@ -622,6 +622,16 @@ dd if="${PRIVATE_IMAGE}" of="${OS_IMAGE}" conv=notrunc bs=1M seek="${partoff[PRI
 
 # BOTTLEROCKET-DATA-A and BOTTLEROCKET-DATA-B
 
+cat <<EOF >"${DATA_MOUNT}/user-data-defaults.toml"
+[settings]
+motd = "hello from defaults"
+EOF
+
+cat <<EOF >"${DATA_MOUNT}/user-data-overrides.toml"
+[settings]
+motd = "hello from overrides"
+EOF
+
 # If we build on a host with SELinux enabled, we could end up with labels that
 # do not match our policy. Since we allow replacing the data volume at runtime,
 # we can't count on these labels being correct in any case, and it's better to
