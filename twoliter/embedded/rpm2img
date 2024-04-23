@@ -285,6 +285,7 @@ elf_note() {
 # add elf note to relevant binaries
 elf_note "${VARIANT}" "note.elf"
 
+start_time=$(date +%s)
 ELF_MAGIC="\x7fELF"
 for some_file in "${ROOT_MOUNT}"/usr/bin/*; do
   # ensure that the file is not a link to avoid adding duplicate notes
@@ -295,6 +296,11 @@ for some_file in "${ROOT_MOUNT}"/usr/bin/*; do
     fi
   fi
 done
+end_time=$(date +%s)
+
+echo "elf notes took $(($end_time-$start_time)) seconds"
+
+exit 1
 
 # install licenses
 mksquashfs \
