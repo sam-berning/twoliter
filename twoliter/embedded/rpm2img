@@ -11,6 +11,7 @@ shopt -qs failglob
 OUTPUT_FMT="raw"
 BUILDER_ARCH="$(uname -m)"
 OVF_TEMPLATE=""
+DEFAULTS_FILE=""
 
 GRUB_SET_PRIVATE_VAR="no"
 XFS_DATA_PARTITION="no"
@@ -31,6 +32,7 @@ for opt in "$@"; do
       --with-grub-set-private-var=*) GRUB_SET_PRIVATE_VAR="${optarg}" ;;
       --xfs-data-partition=*) XFS_DATA_PARTITION="${optarg}" ;;
       --with-uefi-secure-boot=*) UEFI_SECURE_BOOT="${optarg}" ;;
+      --defaults-file=*) DEFAULTS_FILE="${optarg}" ;;
    esac
 done
 
@@ -239,6 +241,10 @@ INVENTORY_DATA="$(jq --arg PKG_PREFIX "bottlerocket-" \
 # sort by package name and add 'Content' as top-level
 INVENTORY_DATA="$(jq --slurp 'sort_by(.Name)' <<< "${INVENTORY_DATA}" | jq '{"Content": .}')"
 printf "%s\n" "${INVENTORY_DATA}" > "${ROOT_MOUNT}/usr/share/bottlerocket/application-inventory.json"
+
+if [ -f "${DEFAULTS_FILE}" ]; then
+  cp "${DEFAULTS_FILE}" "${ROOT_MOUNT}/usr/share/bottlerocket/defaults.toml"
+fi
 
 # install licenses
 mksquashfs \

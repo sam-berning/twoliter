@@ -342,6 +342,12 @@ impl ManifestInfo {
         })
     }
 
+    /// Convenience method to return the defaults dir for this variant.
+    pub fn defaults_dir(&self) -> Option<&String> {
+        self.build_variant()
+            .and_then(|b| b.defaults_dir.as_ref())
+    }
+
     /// Helper methods to navigate the series of optional struct fields.
     fn build_package(&self) -> Option<&BuildPackage> {
         self.package
@@ -410,6 +416,7 @@ pub struct BuildVariant {
     pub supported_arches: Option<HashSet<SupportedArch>>,
     pub kernel_parameters: Option<Vec<String>>,
     pub image_features: Option<HashMap<ImageFeature, bool>>,
+    pub defaults_dir: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]

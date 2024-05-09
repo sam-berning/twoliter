@@ -269,6 +269,7 @@ RUN --mount=target=/host \
       --data-image-publish-size-gib="${DATA_IMAGE_PUBLISH_SIZE_GIB}" \
       --partition-plan="${PARTITION_PLAN}" \
       --ovf-template="/host/variants/${VARIANT}/template.ovf" \
+      --defaults-file="/host/build/tools/defaults.toml" \
       ${XFS_DATA_PARTITION:+--xfs-data-partition=yes} \
       ${GRUB_SET_PRIVATE_VAR:+--with-grub-set-private-var=yes} \
       ${UEFI_SECURE_BOOT:+--with-uefi-secure-boot=yes} \

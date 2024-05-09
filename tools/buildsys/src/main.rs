@@ -21,15 +21,19 @@ use buildsys::manifest::{BundleModule, ManifestInfo, SupportedArch};
 use cache::LookasideCache;
 use clap::Parser;
 use gomod::GoMod;
+use merge_toml::merge_values;
 use project::ProjectInfo;
 use snafu::{ensure, ResultExt};
 use spec::SpecInfo;
-use std::path::PathBuf;
-use std::process;
+use std::path::{Path, PathBuf};
+use std::{fs, process};
+use toml::{map::Map, Value};
+use walkdir::WalkDir;
 
 mod error {
     use buildsys::manifest::SupportedArch;
     use snafu::Snafu;
+    use std::path::PathBuf;
 
     #[derive(Debug, Snafu)]
     #[snafu(visibility(pub(super)))]
@@ -83,6 +87,35 @@ mod error {
         UnsupportedArch {
             arch: SupportedArch,
             supported_arches: Vec<String>,
+        },
+
+        #[snafu(display("Failed to {} {}: {}", op, path.display(), source))]
+        File {
+            op: String,
+            path: PathBuf,
+            source: std::io::Error,
+        },
+
+        #[snafu(display("Failed to list files in {}: {}", dir.display(), source))]
+        ListFiles {
+            dir: PathBuf,
+            source: walkdir::Error,
+        },
+
+        #[snafu(display("{} is not valid TOML: {}", path.display(), source))]
+        TomlDeserialize {
+            path: PathBuf,
+            source: toml::de::Error,
+        },
+
+        #[snafu(display("Failed to merge TOML: {}", source))]
+        TomlMerge {
+            source: merge_toml::Error,
+        },
+
+        #[snafu(display("Failed to serialize default settings: {}", source))]
+        TomlSerialize {
+            source: toml::ser::Error,
         },
     }
 }
@@ -246,6 +279,8 @@ fn build_variant(args: BuildVariantArgs) -> Result<()> {
 
     supported_arch(&manifest, args.common.arch)?;
 
+    generate_defaults_toml(&manifest, &args.common.root_dir)?;
+
     if manifest.included_packages().is_some() {
         DockerBuild::new_variant(args, &manifest)
             .context(error::BuilderInstantiationSnafu)?
@@ -270,6 +305,45 @@ fn supported_arch(manifest: &ManifestInfo, arch: SupportedArch) -> Result<()> {
                     .collect::<Vec<String>>()
             }
         )
+    }
+    Ok(())
+}
+
+/// Merge the variant's default settings files into a single TOML value.  The result is serialized
+/// to a file in OUT_DIR for storewolf to read.
+fn generate_defaults_toml(manifest: &ManifestInfo, root_dir: &PathBuf) -> Result<()> {
+    if let Some(defaults_dir) = manifest.defaults_dir() {
+        // Find TOML config files specified by the variant.
+        let walker = WalkDir::new(defaults_dir)
+            .follow_links(true) // we expect users to link to shared files
+            .min_depth(1) // only read files in defaults.d, not doing inheritance yet
+            .max_depth(1)
+            .sort_by(|a, b| a.file_name().cmp(b.file_name())) // allow ordering by prefix
+            .into_iter()
+            .filter_entry(|e| e.file_name().to_string_lossy().ends_with(".toml")); // looking for TOML config
+
+        // Merge the files into a single TOML value, in order.
+        let mut defaults = Value::Table(Map::new());
+        for entry in walker {
+            let entry = entry.context(error::ListFilesSnafu { dir: defaults_dir })?;
+
+            // Reflect that we need to rerun if any of the default settings files have changed.
+            println!("cargo:rerun-if-changed={}", entry.path().display());
+
+            let data = fs::read_to_string(entry.path()).context(error::FileSnafu {
+                op: "read",
+                path: entry.path(),
+            })?;
+            let value = toml::from_str(&data)
+                .context(error::TomlDeserializeSnafu { path: entry.path() })?;
+            merge_values(&mut defaults, &value).context(error::TomlMergeSnafu)?;
+        }
+
+        // Serialize to disk.
+        let data = toml::to_string(&defaults).context(error::TomlSerializeSnafu)?;
+        // FIXME: need a better spot for this. ./build/static? maybe simply ./build?
+        let path = Path::new(root_dir).join("build/tools/defaults.toml");
+        fs::write(&path, data).context(error::FileSnafu { op: "write", path })?;
     }
     Ok(())
 }
