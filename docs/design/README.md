@@ -104,7 +104,7 @@ Twoliter will eliminate the need for all build-host software other than `docker`
 
 A central idea in this design is that the build system will be able to produce and consume Docker images that contain RPM packages.
 We call these images *kits*.
-A kit is a Yum repo distributed in its entirety, atomically, as a container image.
+A kit is an RPM repo distributed in its entirety, atomically, as a container image.
 
 Maintainers may reference these kits in order to add packages to their Bottlerocket variants.
 In particular, the core project will publish all of its packages in a suite of kits.
@@ -143,29 +143,35 @@ This will be a Cargo workspace with one Cargo package for each kit.
 ```
 kits
 ├── aws
+│   ├── src
+│   │   └── lib.rs
 │   ├── build.rs
-│   ├── Cargo.toml
-│   └── lib.rs
+│   └── Cargo.toml
 ├── core
+│   ├── src
+│   │   └── lib.rs
 │   ├── build.rs
-│   ├── Cargo.toml
-│   └── lib.rs
+│   └── Cargo.toml
 ├── ecs
+│   ├── src
+│   │   └── lib.rs
 │   ├── build.rs
-│   ├── Cargo.toml
-│   └── lib.rs
+│   └── Cargo.toml
 ├── k8s
+│   ├── src
+│   │   └── lib.rs
 │   ├── build.rs
-│   ├── Cargo.toml
-│   └── lib.rs
+│   └── Cargo.toml
 ├── metal
+│   ├── src
+│   │   └── lib.rs
 │   ├── build.rs
-│   ├── Cargo.toml
-│   └── lib.rs
+│   └── Cargo.toml
 └── vmware
+    ├── src
+    │   └── lib.rs
     ├── build.rs
-    ├── Cargo.toml
-    └── lib.rs
+    └── Cargo.toml
 ```
 
 A variant such as `metal-k8s-1.22` would consume the necessary kits.
@@ -181,30 +187,31 @@ A kit container will be built using `FROM scratch` because it does not need a ru
 Its directory structure will look like this:
 
 ```sh
-# tree /local --dirsfirst
-/local
-├── etc
-│   └── yum.repos.d
-│       └── bottlerocket-core-kit.repo
-└── kits
-    └── bottlerocket-core-kit
-        ├── repodata
-        │   ├── 30e098715e13cbe4733c6b4518dcc2cdc68d1ac3277eefad2ee5ac171c4b9023-primary.sqlite.bz2
-        │   ├── 5a22c22832fa81e55f84de715cf910cebc64d472be65a7124fd8b02ff7c777fb-filelists.xml.gz
-        │   ├── 719d1eef5ce4d194d4c5c51171dce8987cb21e88338f1d5dff7554dacabf1004-other.sqlite.bz2
-        │   ├── 7cbab1a2f05c1eda86d3d125497af680d9100665e3eb30c7560926eabbc2c655-primary.xml.gz
-        │   ├── d61fe62ca166eab1cbd502cf21cd977798ef348de49fb35e38a93ebf696eb0a5-filelists.sqlite.bz2
-        │   ├── fcd4dadc59c6d6512410b103a38762bf266389e01a60add12319191c4cc16ec4-other.xml.gz
-        │   └── repomd.xml
-        ├── bottlerocket-x86_64-acpid-2.0.34-1.x86_64.rpm
-        ├── bottlerocket-x86_64-apiclient-0.0-0.x86_64.rpm
-        ├── ...
-        └── bottlerocket-x86_64-wicked-0.6.68-1.x86_64.rpm
+# tree bottlerocket-core-kit/x86_64 --dirsfirst
+bottlerocket-core-kit/x86_64
+├── Packages
+│   ├── acpid
+│   │   └── bottlerocket-acpid-2.0.34-1.1718737009.8029faef.br1.x86_64.rpm
+│   ├── amazon-ssm-agent
+│   │   ├── bottlerocket-amazon-ssm-agent-3.3.418.0-1.1718737009.8029faef.br1.x86_64.rpm
+│   │   ├── bottlerocket-amazon-ssm-agent-bin-3.3.418.0-1.1718737009.8029faef.br1.x86_64.rpm
+│   │   └── bottlerocket-amazon-ssm-agent-fips-bin-3.3.418.0-1.1718737009.8029faef.br1.x86_64.rpm
+│   ├── aws-iam-authenticator
+│   │   ├── bottlerocket-aws-iam-authenticator-0.6.14-1.1718737009.8029faef.br1.x86_64.rpm
+│   │   ├── bottlerocket-aws-iam-authenticator-bin-0.6.14-1.1718737009.8029faef.br1.x86_64.rpm
+│   │   └── bottlerocket-aws-iam-authenticator-fips-bin-0.6.14-1.1718737009.8029faef.br1.x86_64.rpm
+│   ├── ...
+│   └── xfsprogs
+│       ├── bottlerocket-xfsprogs-6.7.0-1.1718737009.8029faef.br1.x86_64.rpm
+│       └── bottlerocket-xfsprogs-devel-6.7.0-1.1718737009.8029faef.br1.x86_64.rpm
+└── repodata
+    ├── 311c8c358c30c5bb95a95b668f1341bc8dd4e957708d572e502d02d6cae7aa1b-primary.xml.zst
+    ├── 639b310e40372e22d9a1df5825b0e1f522a5e5eaecd7ac3682e208491f9ce9be-other.xml.zst
+    ├── cd0e0b82e93956d8d574addb43bd4c6679d5a588f73c185a4b5ebe5362ec60b4-filelists.xml.zst
+    └── repomd.xml
 ```
 
-The `/etc/yum.repos.d` file can be used later to configure `dnf`.
-This will allow `dnf` to treat each kit as a yum repository.
-When aggregating kits, the yum repos will be prioritized according to the maintainer's requirements.
+The RPMs are split up by package in the Twoliter project so that each package can constitute its own layer in the kit's docker image. This means that changes to one package will not require kit publishers and consumers to update any of the unchanged packages.
 
 ### Kit Dependencies
 
@@ -215,7 +222,7 @@ All kits used together need to have been built by the same SDK.
 Another way to say this is that all kits must depend on the same SDK.
 Kits must also depend on the exact same version of other kits that they mutually depend on.
 
-We will create a metadata container image where these dependencies are enumerated in a JSON file.
+We will store some metadata in the image labels where these dependencies are enumerated.
 Consider a kit named `my-awesome-kit`.
 This may be published to a container registry and tagged with versions by the publisher:
 
@@ -230,31 +237,42 @@ Our JSON metadata for `my-awesome-kit` will let tell us about the kit and SDK de
 
 ```json
 {
-  "kit": {
-    "name": "my-awesome-kit",
-    "version": "v0.1.0",
-    "arch": "x86_64",
-    "sdk": "public.ecr.aws/bottlerocket/bottlerocket-sdk-x86_64:v0.50.0",
-    "dependencies": [
-        "public.ecr.aws/bottlerocket/bottlerocket-core-kit-x86_64:v1.15.1"
-    ]
-  }
+  "kit": [
+      "public.ecr.aws/bottlerocket/bottlerocket-core-kit:v2.0.0"
+  ],
+  "name": "my-awesome-kit",
+  "sdk": {
+    "digest": "+Cu8yFgnaFYG5ZQ0eZWRndXxHTLEAR58EhZITbJinLI=",
+    "name": "bottlerocket-sdk",
+    "source": "public.ecr.aws/bottlerocket/bottlerocket-sdk:v0.42.0",
+    "vendor": "bottlerocket",
+    "version": "0.42.0"
+  },
+  "version": "0.1.0"
 }
 ```
 
-In this example, it would be an error if `bottlerocket-core-kit-x86_64:v1.15.1` declared that it had been built with anything other `public.ecr.aws/bottlerocket/bottlerocket-sdk-x86_64:v0.50.0`.
+In this example, it would be an error if `bottlerocket-core-kit:v2.0.0` declared that it had been built with anything other `public.ecr.aws/bottlerocket/bottlerocket-sdk:v0.42.0`.
 
-This metadata will be stored and tagged with the kit with the following naming convention so that `twoliter` can easily find it.
+This metadata JSON will be base64 encoded and stored in the image labels under `dev.bottlerocket.kit.v1` so that `twoliter` can easily find it by reading the config layer of the image.
 
 ```
-registry.com/my-awesome-kit-x86_64:v0.1.0
-registry.com/my-awesome-kit-x86_64:v0.1.0-metadata
-registry.com/my-awesome-kit-x86_64:v0.2.0
-registry.com/my-awesome-kit-x86_64:v0.2.0-metadata
-etc.
+# crane config public.ecr.aws/bottlerocket/bottlerocket-core-kit@sha256:d618d229d249805986d1760db6683c6ce039a7c83748cfc66796ffaaafef498f | jq
+{
+  "architecture": "amd64",
+  "config": {
+    "Env": [],
+    "WorkingDir": "/",
+    "OnBuild": null,
+    "Labels": {
+      "dev.bottlerocket.kit.v1": "eyJraXQiOltdLCJuYW1lIjoiYm90dGxlcm9ja2V0LWNvcmUta2l0Iiwic2RrIjp7ImRpZ2VzdCI6IitDdTh5RmduYUZZRzVaUTBlWldSbmRYeEhUTEVBUjU4RWhaSVRiSmluTEk9IiwibmFtZSI6ImJvdHRsZXJvY2tldC1zZGsiLCJzb3VyY2UiOiJwdWJsaWMuZWNyLmF3cy9ib3R0bGVyb2NrZXQvYm90dGxlcm9ja2V0LXNkazp2MC40Mi4wIiwidmVuZG9yIjoiYm90dGxlcm9ja2V0IiwidmVyc2lvbiI6IjAuNDIuMCJ9LCJ2ZXJzaW9uIjoiMi4wLjAifQo="
+    }
+  },
+  ...
+}
 ```
 
-These metadata files will give twoliter the information it needs to resolve, pull, and aggregate all dependency kits and the correct SDK needed for a build.
+These metadata labels will give twoliter the information it needs to resolve, pull, and aggregate all dependency kits and the correct SDK needed for a build.
 This dependency resolution will be modeled in Cargo and kept in a `Cargo.lock` file (see [Twoliter Update](#twoliter-update)).
 
 ## Containers
@@ -354,8 +372,8 @@ Project directory structure is similar to what we see in Bottlerocket's main rep
 ├── kits
 │   └── hello-dev-kit
 │       ├── src
-│       │   ├── kit.rs
-│       │   └── kit.spec
+│       │   └── lib.rs
+│       ├── build.rs
 │       └── Cargo.toml
 ├── packages
 │   └── hello-agent
@@ -416,12 +434,10 @@ This command makes it easy for maintainers to update the packages (kits actually
 
 In the original Bottlerocket build system, we used Cargo crates to model RPM dependencies.
 In Twoliter, we will again lean on Cargo to manage dependencies for us.
-We will create a local Cargo registry to represent kit and SDK versions, then use `cargo update` to resolve the latest dependencies.
+~We will create a local Cargo registry to represent kit and SDK versions, then use `cargo update` to resolve the latest dependencies.~INCORRECT?
 
 Before describing this procedure, we should consider that no two versions of the same kit can be in the dependency tree.
 Since they are Yum repositories, this would mess things up.
-Cargo allows multiple major versions of a package to exist in a build, but this is behavior we do not want.
-We will use `my-kit = "=1.1.0"` to enforce exact kit versions.
 
 First Twoliter will read the kit dependencies from each variant and add any external kits to its graph.
 Next Twoliter will read the kit definitions in the `kits` directory, and add all of their external dependencies to its graph.
@@ -456,7 +472,6 @@ Twoliter will run `cargo check --locked` to make sure the current state of the p
 If that succeeds then `cargo update` will change the Cargo.toml file to the highest versions of all kits possible.
 (**TODO** - how. If all the versions are locked with `=` then this will not work.)
 The results of this will be parsed and propagated back to the project.
-(**TODO** - how)
 
 ## Twoliter Build
 
