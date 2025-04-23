@@ -179,12 +179,35 @@ macro_rules! impl_ebs_volume_type {
         $name:ident ($awsname:expr) {
             template: $templated_ty:ty,
             volume_size: $size_ty:ident,
+            $($extra_attr:ident: $extra_ty:ident,)*
         }
 
         build(&$self:ident, $builder:ident) {
-            $($impl_body:tt)*
+            $($impl_body:tt)+
         }
     ) => {
+        #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Builder, Templated, Default)]
+        #[serde(deny_unknown_fields, rename_all = "kebab-case")]
+        #[builder(on(_, into))]
+        #[templated(
+            derive(Debug, Clone, Eq, PartialEq, Builder),
+            forward_attrs(serde, builder)
+        )]
+        pub struct $name {
+            #[builder(with = |size: u64| -> Result<_, InvalidValueError> {
+                bounded_from_u64(size, $name::volume_type(), "volume-size")
+            })]
+            pub volume_size: Option<$size_ty>,
+            $(pub $extra_attr: Option<$extra_ty>,)*
+
+            // Common EBS attributes
+            pub delete_on_termination: Option<bool>,
+            pub encrypted: Option<bool>,
+            pub kms_key_id: Option<String>,
+            pub outpost_arn: Option<String>,
+            pub snapshot_id: Option<String>,
+        }
+
         impl $name {
             fn configure_ebs_block_device(
                 &$self,
@@ -278,27 +301,6 @@ macro_rules! impl_ebs_volume_type {
 
 type StandardVolumeSize = BoundedU64<1, 1_024>;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Builder, Templated, Default)]
-#[templated(
-    derive(Debug, Clone, Eq, PartialEq, Builder),
-    forward_attrs(serde, builder)
-)]
-#[serde(deny_unknown_fields, rename_all = "kebab-case")]
-#[builder(on(_, into))]
-pub struct Standard {
-    #[builder(with = |size: u64| -> Result<_, InvalidValueError> {
-        bounded_from_u64(size, Standard::volume_type(), "volume-size")
-    })]
-    pub volume_size: Option<StandardVolumeSize>,
-
-    // Common EBS attributes
-    pub delete_on_termination: Option<bool>,
-    pub encrypted: Option<bool>,
-    pub kms_key_id: Option<String>,
-    pub outpost_arn: Option<String>,
-    pub snapshot_id: Option<String>,
-}
-
 impl_ebs_volume_type! {
     Standard ("standard") {
         template: TemplatedStandard,
@@ -313,101 +315,38 @@ impl_ebs_volume_type! {
 type Io1VolumeSize = BoundedU64<4, 16_384>;
 type Io1Iops = BoundedU64<100, 64_000>;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Builder, Templated)]
-#[templated(
-    derive(Debug, Clone, Eq, PartialEq, Builder),
-    forward_attrs(serde, builder)
-)]
-#[serde(deny_unknown_fields, rename_all = "kebab-case")]
-#[builder(on(_, into))]
-pub struct Io1 {
-    #[builder(with = |size: u64| -> Result<_, InvalidValueError> {
-        bounded_from_u64(size, Io1::volume_type(), "volume-size")
-    })]
-    pub volume_size: Option<Io1VolumeSize>,
-    pub iops: Io1Iops,
-
-    // Common EBS attributes
-    pub delete_on_termination: Option<bool>,
-    pub encrypted: Option<bool>,
-    pub kms_key_id: Option<String>,
-    pub outpost_arn: Option<String>,
-    pub snapshot_id: Option<String>,
-}
-
 impl_ebs_volume_type! {
     Io1 ("io1") {
         template: TemplatedIo1,
         volume_size: Io1VolumeSize,
+        iops: Io1Iops,
     }
 
     build(&self, builder) {
         builder
             .set_volume_size(self.volume_size.map(AsPrimitive::as_))
-            .iops(self.iops.as_())
+            .set_iops(self.iops.map(AsPrimitive::as_))
     }
 }
 
 type Io2VolumeSize = BoundedU64<4, 65_536>;
 type Io2Iops = BoundedU64<100, 256_000>;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Builder, Templated)]
-#[templated(
-    derive(Debug, Clone, Eq, PartialEq, Builder),
-    forward_attrs(serde, builder)
-)]
-#[serde(deny_unknown_fields, rename_all = "kebab-case")]
-#[builder(on(_, into))]
-pub struct Io2 {
-    #[builder(with = |size: u64| -> Result<_, InvalidValueError> {
-        bounded_from_u64(size, Io2::volume_type(), "volume-size")
-    })]
-    pub volume_size: Option<Io2VolumeSize>,
-    pub iops: Io2Iops,
-
-    // Common EBS attributes
-    pub delete_on_termination: Option<bool>,
-    pub encrypted: Option<bool>,
-    pub kms_key_id: Option<String>,
-    pub outpost_arn: Option<String>,
-    pub snapshot_id: Option<String>,
-}
-
 impl_ebs_volume_type! {
     Io2 ("io2") {
         template: TemplatedIo2,
         volume_size: Io2VolumeSize,
+        iops: Io2Iops,
     }
 
     build(&self, builder) {
         builder
             .set_volume_size(self.volume_size.map(AsPrimitive::as_))
-            .iops(self.iops.as_())
+            .set_iops(self.iops.map(AsPrimitive::as_))
     }
 }
 
 type Gp2VolumeSize = BoundedU64<1, 16_384>;
-
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Builder, Templated, Default)]
-#[templated(
-    derive(Debug, Clone, Eq, PartialEq, Builder),
-    forward_attrs(serde, builder)
-)]
-#[serde(deny_unknown_fields, rename_all = "kebab-case")]
-#[builder(on(_, into))]
-pub struct Gp2 {
-    #[builder(with = |size: u64| -> Result<_, InvalidValueError> {
-        bounded_from_u64(size, Gp2::volume_type(), "volume-size")
-    })]
-    pub volume_size: Option<Gp2VolumeSize>,
-
-    // Common EBS attributes
-    pub delete_on_termination: Option<bool>,
-    pub encrypted: Option<bool>,
-    pub kms_key_id: Option<String>,
-    pub outpost_arn: Option<String>,
-    pub snapshot_id: Option<String>,
-}
 
 impl_ebs_volume_type! {
     Gp2 ("gp2") {
@@ -422,27 +361,6 @@ impl_ebs_volume_type! {
 
 type Sc1VolumeSize = BoundedU64<125, 16_384>;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Builder, Templated, Default)]
-#[templated(
-    derive(Debug, Clone, Eq, PartialEq, Builder),
-    forward_attrs(serde, builder)
-)]
-#[serde(deny_unknown_fields, rename_all = "kebab-case")]
-#[builder(on(_, into))]
-pub struct Sc1 {
-    #[builder(with = |size: u64| -> Result<_, InvalidValueError> {
-        bounded_from_u64(size, Sc1::volume_type(), "volume-size")
-    })]
-    pub volume_size: Option<Sc1VolumeSize>,
-
-    // Common EBS attributes
-    pub delete_on_termination: Option<bool>,
-    pub encrypted: Option<bool>,
-    pub kms_key_id: Option<String>,
-    pub outpost_arn: Option<String>,
-    pub snapshot_id: Option<String>,
-}
-
 impl_ebs_volume_type! {
     Sc1 ("sc1") {
         template: TemplatedSc1,
@@ -455,27 +373,6 @@ impl_ebs_volume_type! {
 }
 
 type St1VolumeSize = BoundedU64<125, 16_384>;
-
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Builder, Templated, Default)]
-#[templated(
-    derive(Debug, Clone, Eq, PartialEq, Builder),
-    forward_attrs(serde, builder)
-)]
-#[serde(deny_unknown_fields, rename_all = "kebab-case")]
-#[builder(on(_, into))]
-pub struct St1 {
-    #[builder(with = |size: u64| -> Result<_, InvalidValueError> {
-        bounded_from_u64(size, St1::volume_type(), "volume-size")
-    })]
-    volume_size: Option<St1VolumeSize>,
-
-    // Common EBS attributes
-    pub delete_on_termination: Option<bool>,
-    pub encrypted: Option<bool>,
-    pub kms_key_id: Option<String>,
-    pub outpost_arn: Option<String>,
-    pub snapshot_id: Option<String>,
-}
 
 impl_ebs_volume_type! {
     St1 ("st1") {
@@ -492,33 +389,12 @@ type Gp3Iops = BoundedU64<3_000, 16_000>;
 type Gp3Throughput = BoundedU64<125, 1_000>;
 type Gp3VolumeSize = BoundedU64<1, 16_384>;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Builder, Templated, Default)]
-#[templated(
-    derive(Debug, Clone, Eq, PartialEq, Builder),
-    forward_attrs(serde, builder)
-)]
-#[serde(deny_unknown_fields, rename_all = "kebab-case")]
-#[builder(on(_, into))]
-pub struct Gp3 {
-    #[builder(with = |size: u64| -> Result<_, InvalidValueError> {
-        bounded_from_u64(size, Gp3::volume_type(), "volume-size")
-    })]
-    pub volume_size: Option<Gp3VolumeSize>,
-    pub iops: Option<Gp3Iops>,
-    pub throughput: Option<Gp3Throughput>,
-
-    // Common EBS attributes
-    pub delete_on_termination: Option<bool>,
-    pub encrypted: Option<bool>,
-    pub kms_key_id: Option<String>,
-    pub outpost_arn: Option<String>,
-    pub snapshot_id: Option<String>,
-}
-
 impl_ebs_volume_type! {
     Gp3 ("gp3") {
         template: TemplatedGp3,
         volume_size: Gp3VolumeSize,
+        iops: Gp3Iops,
+        throughput: Gp3Throughput,
     }
 
     build(&self, builder) {
